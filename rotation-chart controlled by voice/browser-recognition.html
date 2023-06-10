@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Browser speech recognition</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <div class="container">
+        <ul class="imgBox">
+          <li class="img"></li>
+          <li class="img"></li>
+          <li class="img"></li>
+          <li class="img"></li>
+        </ul>
+        <div class="prev" id="prev">&lt;</div>
+        <div class="next" id="next">&gt;</div>
+        <ul class="circle">
+          <li id="hover"></li>
+          <li></li>
+          <li></li>
+          <li></li>
+        </ul>
+      </div>
+      <button id="button">开始讲话</button>
+      <div id="result"></div>
+      <p id="message" hidden aria-hidden="true">
+        Your browser doesn't support Speech Recognition. Sorry.
+      </p>
+    </main>
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        let imgs = document.querySelector(".imgBox");
+        let prev = document.querySelector("#prev");
+        let next = document.querySelector("#next");
+        let circles = document.querySelectorAll(".circle li");
+
+        const init = () => {
+          prev.addEventListener("click", handlePrevImg, false);
+          next.addEventListener("click", handleNextImg, false);
+        };
+        let first = imgs.children[0].cloneNode(true);
+        imgs.appendChild(first);
+
+        let index = 0;
+        let time;
+
+        // 节流锁
+        let lock = true;
+
+        /**
+         * 图片移动 正序
+         */
+        const nextPosition = () => {
+          imgs.style.transition = ".7s ease-out";
+          if (index === 4) {
+            setTimeout(() => {
+              imgs.style.left = 0;
+              imgs.style.transition = "none";
+              index = 0;
+            }, 700);
+          }
+          imgs.style.left = index * -100 + "%";
+        };
+        /**
+         * 图片移动 逆序
+         */
+        const prevPosition = () => {
+          if (index < 1) {
+            imgs.style.transition = "none";
+            imgs.style.left = 4 * -100 + "%";
+            setTimeout(() => {
+              imgs.style.transition = ".7s ease-out";
+              imgs.style.left = 3 * -100 + "%";
+            }, 0);
+            index = 3;
+          } else {
+            index--;
+            imgs.style.left = index * -100 + "%";
+          }
+        };
+
+        // const timer = () => {
+        //   time = setInterval(() => {
+        //     index++
+        //     console.log('我自动触发了 index:', index);
+        //     nextPosition()
+        //     handlehover()
+        //   },3500)
+        // }
+
+        const handlePrevImg = () => {
+          if (!lock) return;
+          prevPosition();
+          console.log(`我是上一张图 index:${index}`);
+          clearInterval(time);
+          // timer()
+          handlehover();
+          lock = false;
+          setTimeout(() => {
+            lock = true;
+          }, 700);
+        };
+
+        const handleNextImg = () => {
+          if (!lock) return;
+          index++;
+          console.log(`我是下一张图 index:${index}`);
+          nextPosition();
+          handlehover();
+          clearInterval(time);
+          // timer()
+          lock = false;
+          setTimeout(() => {
+            lock = true;
+          }, 700);
+        };
+
+        const handlehover = () => {
+          for (let j = 0; j < circles.length; j++) {
+            circles[j].id = "";
+          }
+          if (index === 4) {
+            circles[0].id = "hover";
+          } else {
+            circles[index].id = "hover";
+          }
+        };
+
+        for (let i = 0; i < circles.length; i++) {
+          circles[i].addEventListener(
+            "click",
+            () => {
+              index = i;
+              console.log(`我是小圆点 index:${index}`);
+              nextPosition();
+              clearInterval(time);
+              handlehover();
+              // timer()
+            },
+            false
+          );
+        }
+
+        // timer()
+        init();
+
+
+        const button = document.getElementById("button");
+        const result = document.getElementById("result");
+        const main = document.getElementsByTagName("main")[0];
+        let listening = false;
+        const SpeechRecognition =
+          window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (typeof SpeechRecognition !== "undefined") {
+          const recognition = new SpeechRecognition();
+
+          const stop = () => {
+            main.classList.remove("speaking");
+            recognition.stop();
+            button.textContent = "开始讲话";
+          };
+
+          recognition.lang = "zh-CN";
+
+          const start = () => {
+            main.classList.add("speaking");
+            recognition.start();
+            button.textContent = "结束";
+          };
+
+          const onResult = (event) => {
+            result.innerHTML = "";
+            for (const res of event.results) {
+              const text = document.createTextNode(res[0].transcript);
+              const p = document.createElement("p");
+              if (res.isFinal) {
+                p.classList.add("final");
+              }
+              p.appendChild(text);
+              // 调整此处样式
+              p.style = "margin-top: 20px";
+              result.appendChild(p);
+            }
+            const length = event.results.length;
+            const curSpeechResult = event.results[length - 1];
+            const isFinal = curSpeechResult.isFinal;
+            const curSpeechResultText = curSpeechResult[0].transcript;
+            const prevImgSpeechTextList = ['上一章。', '上一张。','放一张。','上一个。'];
+            const nextImgSpeechTextList = ['下一章。', '下一张。','下一个'];
+            console.log("### event", curSpeechResultText);
+            if(isFinal && nextImgSpeechTextList.includes(curSpeechResultText)){
+              handleNextImg();
+            }else if(isFinal && prevImgSpeechTextList.includes(curSpeechResultText)){
+              handlePrevImg();
+            }
+            
+          };
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.addEventListener("result", onResult);
+          button.addEventListener("click", (event) => {
+            listening ? stop() : start();
+            listening = !listening;
+          });
+        } else {
+          button.remove();
+          const message = document.getElementById("message");
+          message.removeAttribute("hidden");
+          message.setAttribute("aria-hidden", "false");
+        }
+      });
+    </script>
+  </body>
+</html>
